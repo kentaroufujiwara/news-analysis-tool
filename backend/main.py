@@ -212,11 +212,11 @@ def analyze_with_gemini(article_title: str, article_text: str) -> dict:
         system_instruction=SYSTEM_PROMPT
     )
 
+    title_line = f"【記事タイトル】\n{article_title}\n" if article_title else "【記事タイトル】\n（本文から適切なタイトルを生成してください）\n"
+
     prompt = f"""以下のニュース記事を分析してください。
 
-【記事タイトル】
-{article_title}
-
+{title_line}
 【記事本文】
 {article_text}
 """
@@ -274,9 +274,20 @@ async def analyze(request: AnalyzeRequest):
             )
     else:
         article_text = request.text
-        article_title = "（直接入力テキスト）"
+        article_title = ""  # Geminiに本文からタイトルを生成させる
 
     result = analyze_with_gemini(article_title, article_text)
+
+    # None → [] の正規化（Geminiがnullを返すケース対策）
+    di = result.get("directImpact", {})
+    for key in ["positiveIndustries", "negativeIndustries", "notableStocks"]:
+        if di.get(key) is None:
+            di[key] = []
+    ag = result.get("associationGame", {})
+    for key in ["primary", "secondary", "tertiary"]:
+        if ag.get(key) is None:
+            ag[key] = []
+
     return result
 
 
