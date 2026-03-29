@@ -97,7 +97,7 @@ def scrape_article(url: str) -> dict:
         response.raise_for_status()
         response.encoding = response.apparent_encoding
 
-        soup = BeautifulSoup(response.text, "lxml")
+        soup = BeautifulSoup(response.text, "html.parser")
 
         # 不要な要素を除去
         for tag in soup(["script", "style", "nav", "header", "footer", "aside", "advertisement", "iframe"]):
