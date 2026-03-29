@@ -208,7 +208,7 @@ def analyze_with_gemini(article_title: str, article_text: str) -> dict:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY が設定されていません")
 
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
+        model_name="gemini-2.0-flash",
         system_instruction=SYSTEM_PROMPT
     )
 
