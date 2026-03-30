@@ -222,42 +222,35 @@ def analyze_with_gemini(article_title: str, article_text: str) -> dict:
 {article_text}
 """
 
-    # 429レート制限に対して指数バックオフでリトライ
-    max_retries = 4
-    wait_seconds = [30, 60, 120, 180]
-
-    for attempt in range(max_retries):
-        try:
-            response = model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.3,
-                    max_output_tokens=8192,
-                )
+    try:
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.3,
+                max_output_tokens=8192,
             )
-            raw_text = response.text.strip()
+        )
+        raw_text = response.text.strip()
 
-            # ```json ... ``` ブロックを除去
-            code_block_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_text)
-            if code_block_match:
-                raw_text = code_block_match.group(1).strip()
-            else:
-                json_match = re.search(r'\{[\s\S]*\}', raw_text)
-                if json_match:
-                    raw_text = json_match.group()
+        # ```json ... ``` ブロックを除去
+        code_block_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_text)
+        if code_block_match:
+            raw_text = code_block_match.group(1).strip()
+        else:
+            json_match = re.search(r'\{[\s\S]*\}', raw_text)
+            if json_match:
+                raw_text = json_match.group()
 
-            result = json.loads(raw_text)
-            return result
+        result = json.loads(raw_text)
+        return result
 
-        except json.JSONDecodeError as e:
-            raise HTTPException(status_code=500, detail=f"AIの応答をJSONとして解析できませんでした: {str(e)}")
-        except Exception as e:
-            err_str = str(e)
-            if "429" in err_str and attempt < max_retries - 1:
-                wait = wait_seconds[attempt]
-                time.sleep(wait)
-                continue
-            raise HTTPException(status_code=500, detail=f"Gemini APIエラー: {err_str}")
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=500, detail=f"AIの応答をJSONとして解析できませんでした: {str(e)}")
+    except Exception as e:
+        err_str = str(e)
+        if "429" in err_str:
+            raise HTTPException(status_code=429, detail="APIのレート制限に達しました。しばらく待ってから再度お試しください。")
+        raise HTTPException(status_code=500, detail=f"Gemini APIエラー: {err_str}")
 
 
 @app.post("/api/analyze")

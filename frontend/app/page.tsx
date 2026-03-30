@@ -47,8 +47,9 @@ export default function Home() {
 
       if (!res.ok) {
         const message = data.detail || '分析に失敗しました'
-        // ペイウォールエラーの場合はテキスト入力に誘導
-        if (res.status === 422 && message.includes('ペイウォール')) {
+        if (res.status === 429) {
+          setError('AIのレート制限に達しました。1〜2分待ってから再度お試しください。（無料枠: 15回/分）')
+        } else if (res.status === 422 && message.includes('ペイウォール')) {
           setError(message)
           setInputMode('text')
         } else {
