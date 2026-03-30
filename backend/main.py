@@ -208,10 +208,8 @@ def analyze_with_gemini(article_title: str, article_text: str) -> dict:
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY が設定されていません")
 
-    model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash",
-        system_instruction=SYSTEM_PROMPT
-    )
+    # プライマリモデル → フォールバックの順に試す
+    model_names = ["gemini-2.5-flash", "gemini-flash-lite-latest"]
 
     title_line = f"【記事タイトル】\n{article_title}\n" if article_title else "【記事タイトル】\n（本文から適切なタイトルを生成してください）\n"
 
@@ -222,32 +220,45 @@ def analyze_with_gemini(article_title: str, article_text: str) -> dict:
 {article_text}
 """
 
-    try:
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.3,
-                max_output_tokens=8192,
-            )
+    last_error = None
+    for model_name in model_names:
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            system_instruction=SYSTEM_PROMPT
         )
-        raw_text = response.text.strip()
+        try:
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.3,
+                    max_output_tokens=8192,
+                )
+            )
+            raw_text = response.text.strip()
 
-        # ```json ... ``` ブロックを除去
-        code_block_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_text)
-        if code_block_match:
-            raw_text = code_block_match.group(1).strip()
-        else:
-            json_match = re.search(r'\{[\s\S]*\}', raw_text)
-            if json_match:
-                raw_text = json_match.group()
+            # ```json ... ``` ブロックを除去
+            code_block_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_text)
+            if code_block_match:
+                raw_text = code_block_match.group(1).strip()
+            else:
+                json_match = re.search(r'\{[\s\S]*\}', raw_text)
+                if json_match:
+                    raw_text = json_match.group()
 
-        result = json.loads(raw_text)
-        return result
+            result = json.loads(raw_text)
+            return result
 
-    except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"AIの応答をJSONとして解析できませんでした: {str(e)}")
-    except Exception as e:
-        err_str = str(e)
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=500, detail=f"AIの応答をJSONとして解析できませんでした: {str(e)}")
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str:
+                last_error = err_str
+                continue  # フォールバックモデルを試す
+            raise HTTPException(status_code=500, detail=f"Gemini APIエラー: {err_str}")
+
+    # 全モデルで429の場合
+    err_str = last_error or ""
         if "429" in err_str:
             raise HTTPException(status_code=429, detail="APIのレート制限に達しました。しばらく待ってから再度お試しください。")
         raise HTTPException(status_code=500, detail=f"Gemini APIエラー: {err_str}")
