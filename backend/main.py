@@ -259,9 +259,9 @@ def analyze_with_gemini(article_title: str, article_text: str) -> dict:
 
     # 全モデルで429の場合
     err_str = last_error or ""
-        if "429" in err_str:
-            raise HTTPException(status_code=429, detail="APIのレート制限に達しました。しばらく待ってから再度お試しください。")
-        raise HTTPException(status_code=500, detail=f"Gemini APIエラー: {err_str}")
+    if "429" in err_str:
+        raise HTTPException(status_code=429, detail="APIのレート制限に達しました。しばらく待ってから再度お試しください。")
+    raise HTTPException(status_code=500, detail=f"Gemini APIエラー: {err_str}")
 
 
 @app.post("/api/analyze")
